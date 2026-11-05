@@ -88,3 +88,31 @@ class ReportGenerator:
 
         c.save()
         return self.__filename
+        class Subsystem4Exception(Exception):
+    """Custom base exception for Subsystem 4 errors."""
+    pass
+
+
+class Subsystem4ErrorHandler:
+    """Centralized error-handling class for Subsystem 4 components."""
+    
+    @staticmethod
+    def handle_database_error(error):
+        """Logs or formats database-related exceptions."""
+        error_msg = f"[Database Error]: {str(error)}"
+        print(error_msg)
+        return error_msg
+
+    @staticmethod
+    def handle_ai_error(error):
+        """Logs or formats AI coach service exceptions."""
+        error_msg = f"[AI Coach Error]: {str(error)}"
+        print(error_msg)
+        return error_msg
+
+    @staticmethod
+    def handle_report_error(error):
+        """Logs or formats report generation exceptions."""
+        error_msg = f"[Report Generation Error]: {str(error)}"
+        print(error_msg)
+        return error_msg
