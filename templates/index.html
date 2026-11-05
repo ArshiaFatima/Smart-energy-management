@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Energy Management – Assignment 3</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="container">
+  <header><p class="eyebrow">ASSIGNMENT 3 · WEB APIs & DATABASE ACCESS</p>
+    <h1>Smart Energy Management</h1>
+    <p>Energy readings retrieved from MySQL through a Flask API.</p></header>
+  <section class="panel">
+    <div class="section-heading">
+      <h2>Energy readings</h2>
+      <div class="heading-actions">
+        <button id="refresh" type="button" class="button-secondary">Refresh</button>
+        <button id="add-reading" type="button">Add reading</button>
+      </div>
+    </div>
+    <p id="status" class="status" aria-live="polite">Loading…</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Details</th><th>ID</th><th>Meter</th><th>Device</th><th>Power (kW)</th><th>Energy (kWh)</th><th>Active</th><th>Recorded at</th></tr></thead>
+      <tbody id="readings"></tbody>
+    </table></div>
+  </section>
+  <section class="panel">
+    <div class="section-heading">
+      <h2>Energy statistics</h2>
+      <button id="refresh-statistics" type="button" class="button-secondary">Refresh statistics</button>
+    </div>
+    <p id="statistics-status" class="status" aria-live="polite">Loading statistics…</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Reading count</th><th>Total energy (kWh)</th><th>Average power (kW)</th></tr></thead>
+      <tbody id="statistics"></tbody>
+    </table></div>
+  </section>
+  <section class="panel"><h2>API endpoints</h2><ul>
+    <li><code>GET /api/readings</code> – retrieve readings</li>
+    <li><code>GET /api/readings/&lt;id&gt;</code> – retrieve one reading</li>
+    <li><code>POST /api/readings</code> – insert a reading</li>
+    <li><code>GET /api/statistics</code> – energy statistics</li>
+    <li><code>GET /health</code> – health check</li>
+  </ul></section>
+  <footer>Assignment 3 · Flask + MySQL</footer>
+</main>
+
+<dialog id="reading-details-dialog" aria-labelledby="details-title">
+  <div class="dialog-heading">
+    <h2 id="details-title">Reading details</h2>
+    <button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button>
+  </div>
+  <p id="details-status" class="status" aria-live="polite"></p>
+  <dl id="reading-details" class="details-list"></dl>
+  <div class="dialog-actions"><button type="button" class="button-secondary" data-close-dialog>Close</button></div>
+</dialog>
+
+<dialog id="add-reading-dialog" aria-labelledby="add-reading-title">
+  <div class="dialog-heading">
+    <h2 id="add-reading-title">Add energy reading</h2>
+    <button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button>
+  </div>
+  <form id="add-reading-form">
+    <label for="meter-id">Meter ID</label>
+    <input id="meter-id" name="meter_id" type="text" maxlength="50" required>
+    <label for="device-type">Device type</label>
+    <input id="device-type" name="device_type" type="text" maxlength="80" required>
+    <label for="power-kw">Power (kW)</label>
+    <input id="power-kw" name="power_kw" type="number" min="0" step="any" required>
+    <label for="energy-kwh">Energy (kWh)</label>
+    <input id="energy-kwh" name="energy_kwh" type="number" min="0" step="any" required>
+    <label class="checkbox-label" for="active">
+      <input id="active" name="active" type="checkbox" checked>
+      Active
+    </label>
+    <p id="form-status" class="status" aria-live="polite"></p>
+    <div class="dialog-actions">
+      <button type="button" class="button-secondary" data-close-dialog>Cancel</button>
+      <button type="submit">Save reading</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+async function requestJSON(url, options) {
+  const response = await fetch(url, options);
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.message || "Request failed");
+  return result;
+}
+
+async function loadReadings() {
+  const status = document.getElementById("status");
+  const tbody = document.getElementById("readings");
+  status.textContent = "Loading readings…";
+  try {
+    const result = await requestJSON("/api/readings");
+    tbody.replaceChildren();
+    result.data.forEach(item => {
+      const tr = document.createElement("tr");
+      const detailsCell = document.createElement("td");
+      const detailsButton = document.createElement("button");
+      detailsButton.type = "button";
+      detailsButton.className = "table-button";
+      detailsButton.textContent = "View";
+      detailsButton.addEventListener("click", () => loadReadingDetails(item.id));
+      detailsCell.appendChild(detailsButton);
+      tr.appendChild(detailsCell);
+      [item.id, item.meter_id, item.device_type, item.power_kw, item.energy_kwh,
+       item.active ? "Yes" : "No", item.recorded_at].forEach(value => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    status.textContent = `${result.count} reading(s) retrieved from MySQL.`;
+  } catch (error) {
+    status.textContent = `Could not load readings: ${error.message}`;
+  }
+}
+
+async function loadReadingDetails(readingId) {
+  const dialog = document.getElementById("reading-details-dialog");
+  const status = document.getElementById("details-status");
+  const details = document.getElementById("reading-details");
+  details.replaceChildren();
+  status.textContent = "Loading reading…";
+  dialog.showModal();
+  try {
+    const result = await requestJSON(`/api/readings/${encodeURIComponent(readingId)}`);
+    const labels = {
+      id: "Reading ID",
+      meter_id: "Meter ID",
+      device_type: "Device type",
+      power_kw: "Power (kW)",
+      energy_kwh: "Energy (kWh)",
+      active: "Active",
+      recorded_at: "Recorded at"
+    };
+    Object.entries(labels).forEach(([key, label]) => {
+      const term = document.createElement("dt");
+      const value = document.createElement("dd");
+      term.textContent = label;
+      value.textContent = key === "active"
+        ? (result.data[key] ? "Yes" : "No")
+        : result.data[key];
+      details.append(term, value);
+    });
+    status.textContent = "";
+  } catch (error) {
+    status.textContent = `Could not load reading: ${error.message}`;
+  }
+}
+
+async function loadStatistics() {
+  const status = document.getElementById("statistics-status");
+  const tbody = document.getElementById("statistics");
+  status.textContent = "Loading statistics…";
+  try {
+    const result = await requestJSON("/api/statistics");
+    tbody.replaceChildren();
+    const row = document.createElement("tr");
+    [
+      result.data.reading_count,
+      result.data.total_energy_kwh,
+      result.data.average_power_kw
+    ].forEach(value => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
+    tbody.appendChild(row);
+    status.textContent = "Statistics retrieved.";
+  } catch (error) {
+    status.textContent = `Could not load statistics: ${error.message}`;
+  }
+}
+
+document.getElementById("add-reading").addEventListener("click", () => {
+  document.getElementById("form-status").textContent = "";
+  document.getElementById("add-reading-dialog").showModal();
+});
+document.querySelectorAll("[data-close-dialog]").forEach(button => {
+  button.addEventListener("click", () => button.closest("dialog").close());
+});
+document.getElementById("add-reading-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = document.getElementById("form-status");
+  const formData = new FormData(form);
+  const payload = {
+    meter_id: formData.get("meter_id"),
+    device_type: formData.get("device_type"),
+    power_kw: Number(formData.get("power_kw")),
+    energy_kwh: Number(formData.get("energy_kwh")),
+    active: formData.has("active")
+  };
+  status.textContent = "Saving reading…";
+  try {
+    await requestJSON("/api/readings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    form.reset();
+    document.getElementById("active").checked = true;
+    document.getElementById("add-reading-dialog").close();
+    await Promise.all([loadReadings(), loadStatistics()]);
+  } catch (error) {
+    status.textContent = `Could not save reading: ${error.message}`;
+  }
+});
+document.getElementById("refresh").addEventListener("click", loadReadings);
+document.getElementById("refresh-statistics").addEventListener("click", loadStatistics);
+loadReadings();
+loadStatistics();
+</script>
+</body></html>

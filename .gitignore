@@ -1,6 +1,6 @@
+.venv/
+venv/
 __pycache__/
-*.pyc
-instance/
-*.db
-.pytest_cache/
+*.py[cod]
 .env
+.pytest_cache/
