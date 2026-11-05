@@ -7,12 +7,14 @@ from models import EnergyReading
 
 energy_bp = Blueprint("energy_api", __name__, url_prefix="/api")
 
+#  WAJIHAH KAINAT ( Get all readings)
 @energy_bp.get("/readings")
 def get_readings():
     rows = EnergyReading.query.order_by(EnergyReading.recorded_at.desc()).all()
     return jsonify({"status": "success", "count": len(rows),
                     "data": [row.to_dict() for row in rows]})
 
+#  PERSON 2 ( Get Reading by ID)
 @energy_bp.get("/readings/<int:reading_id>")
 def get_reading(reading_id):
     row = db.session.get(EnergyReading, reading_id)
@@ -20,6 +22,8 @@ def get_reading(reading_id):
         return jsonify({"status": "error", "message": "Reading not found"}), 404
     return jsonify({"status": "success", "data": row.to_dict()})
 
+
+# PERSON 3  (Create reading)
 @energy_bp.post("/readings")
 def create_reading():
     data = request.get_json(silent=True)
@@ -61,6 +65,7 @@ def create_reading():
     db.session.commit()
     return jsonify({"status": "success", "data": row.to_dict()}), 201
 
+#  Person 4 ( Get Statistics)
 @energy_bp.get("/statistics")
 def get_statistics():
     count, total, average = db.session.query(
